@@ -1,0 +1,20 @@
+{
+  "name": "2-major-project",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A youtube like project being developed as a part of learning backend from Chai aur Code",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": [
+    "Javascript",
+    "Backend",
+    "Learning"
+  ],
+  "author": "Swapnil Agarwal",
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
