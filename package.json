@@ -5,7 +5,7 @@
   "description": "A youtube like project being developed as a part of learning backend from Chai aur Code",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon =r dotenv/config --experimental-json-modules src/index.js"
   },
   "keywords": [
     "Javascript",
@@ -17,5 +17,13 @@
   "devDependencies": {
     "nodemon": "^3.1.9",
     "prettier": "^3.5.1"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongodb": "^6.13.0",
+    "mongoose": "^8.10.1"
   }
 }
