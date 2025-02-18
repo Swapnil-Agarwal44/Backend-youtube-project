@@ -56,7 +56,7 @@ userSchema.pre("save", async function (next) {
   // we are using a mongoose middleware "pre" to store the passwords in hashed format in the database. Pre middleware is used to execute a function just before an event, in this case is "save" event.
   if (this.isModified("password")) {
     // this condition makes sure that the password hasing code only executes when the password field is modified in the database.
-    this.password = bcrypt.hash(this.password, 10);
+    this.password = await bcrypt.hash(this.password, 10);
     return next();
   }
   next();

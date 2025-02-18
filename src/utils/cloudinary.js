@@ -1,6 +1,10 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 
+//We will be using cloudinary to store our media files like profile pictures and videos. We will be getting their URLS from the cloudinary that will be stored in database.
+
+//We will be first taking the files uploaded on the server by the user and storing it in our local storage. Then we will be sending these files to the cloudinary. After the files are successfully stored in cloudinary, we will remove these files from our local storage.
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -24,4 +28,4 @@ const uploadONCloudinary = async (localFilePath) => {
   }
 };
 
-export { uploadONCloudinary };
+export { uploadOnCloudinary };

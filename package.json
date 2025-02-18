@@ -5,7 +5,7 @@
   "description": "A youtube like project being developed as a part of learning backend from Chai aur Code",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon =r dotenv/config --experimental-json-modules src/index.js"
+    "dev": "nodemon -r dotenv/config --experimental-json-modules src/index.js"
   },
   "keywords": [
     "Javascript",

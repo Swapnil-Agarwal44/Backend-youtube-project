@@ -1,3 +1,4 @@
+import { app } from "./app.js";
 import connectDB from "./db/dbConnect.js";
 import dotenv from "dotenv"; // always try to import and configure dotenv package as soon as possible so as to make sure that the environmental variables are available in the files.
 
