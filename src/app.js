@@ -17,12 +17,12 @@ app.use(express.urlencoded({ extended: true, limit: "16kb" }));
 app.use(express.static("public"));
 app.use(cookieParser());
 
-//routes: 
+//routes:
 
 //in standard industry pracises, we write import and other statements regarding files separately with that of application configuration.
 
 import userRouter from "./routes/user.routes.js";
 
-app.use("/api/v1/users", userRouter )    // "api/v1/  is  a standard routing address that we use in urls"
+app.use("/api/v1/users", userRouter); // "api/v1/  is  a standard routing address that we use in urls"
 
 export { app };
