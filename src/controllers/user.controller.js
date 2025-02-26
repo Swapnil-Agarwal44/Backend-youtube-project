@@ -410,7 +410,9 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     if (deleteResult) {
       return res
         .status(200)
-        .json(new apiResponse(200, deleteResult, "Cover Image updated successfully"));
+        .json(
+          new apiResponse(200, deleteResult, "Cover Image updated successfully")
+        );
     } else {
       return new apiError(
         400,
@@ -423,15 +425,14 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 });
 
 const getUserChannelDetails = asyncHandler(async (req, res) => {
-
   // In this function, we will extract the details of the channel that will be sent and displayed on the front end, like username, channel name, subsribers count, subribed channels count, etc.
 
-  // We will be using the aggregation pipeleines to extract the details of the channel like subscribers count and subscribedToChannels count. 
+  // We will be using the aggregation pipeleines to extract the details of the channel like subscribers count and subscribedToChannels count.
 
-  const  {userName} = req.params;
+  const { userName } = req.params;
 
-  if(!userName?.trim()){
-    throw new apiError(400, "Username is required")
+  if (!userName?.trim()) {
+    throw new apiError(400, "Username is required");
   }
 
   //Now we will be using aggregate pipelines to find the user channel based on it's username and will calculate its subscribers count and subscribed channels count.
@@ -439,108 +440,123 @@ const getUserChannelDetails = asyncHandler(async (req, res) => {
   const channel = User.aggregate([
     {
       $match: {
-        userName: userName?.toLowerCase()
-      } // in this pipeline, we are extracting the channel information using the userName. We can do the same using find() method, however, we are using pipeline to make a consistent code
-    }, 
+        userName: userName?.toLowerCase(),
+      }, // in this pipeline, we are extracting the channel information using the userName. We can do the same using find() method, however, we are using pipeline to make a consistent code
+    },
     {
       $lookup: {
-        from: "subscriptions", //IMPORTANT NOTE: in the mongoDb, the model name is converted to lower case and is made plural. 
+        from: "subscriptions", //IMPORTANT NOTE: in the mongoDb, the model name is converted to lower case and is made plural.
         localField: "_id",
-        foreignField: "channel", 
-        as: "subscribers"
-      } // this pipeline works as a join operation, joining a field (column) in the user document containing the subscribers of the user 
-    }, 
+        foreignField: "channel",
+        as: "subscribers",
+      }, // this pipeline works as a join operation, joining a field (column) in the user document containing the subscribers of the user
+    },
     {
       $lookup: {
-      from: "subscriptions",
-      localField: "_id",
-      foreignField: "subscriber", 
-      as: "subscribedTo"
-    }}, // this pipeline works as a join operation, joining a field (column) in the user document containing the subscribed channels of the user
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    }, // this pipeline works as a join operation, joining a field (column) in the user document containing the subscribed channels of the user
 
     //IMPORTANT NOTE: Pipelines work on the data passed by the previous pipeline. However there are some pipelines that doesn't modify data, i.e., can only add fields on the data that is passed on them. They include "$lookup", "$addfields", "$set", "$project", etc. So that is the reason the second "$lookup" was able to work independently of the first lookup.
     {
       $addFields: {
         subscriberCount: {
-          $size: "$subscribers"
+          $size: "$subscribers",
         }, // this will add a new field which will contain the total count of the user's subscribers.
         channelSubscribedToCount: {
-          $size: "subscribedTo"
+          $size: "subscribedTo",
         }, // this will add a new field which will contain the total count of the user's subscribed channels.
         isSubscribed: {
           $cond: {
-            if: {$in: [req.user?._id, "$subscribers.subscriber"]},
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
             then: true,
-            else: false
-          }
-        }// this will add a new field which will contain the boolean value depending if the client has subscribed to the user or not. This value will be used in the front end (react state management). Any client that will view the user's channel, will receive this value. If it is true, then the button beside the channel picture will show "subscribed" button, otherwise it will show "Click to subscribe" button.
-      }
+            else: false,
+          },
+        }, // this will add a new field which will contain the boolean value depending if the client has subscribed to the user or not. This value will be used in the front end (react state management). Any client that will view the user's channel, will receive this value. If it is true, then the button beside the channel picture will show "subscribed" button, otherwise it will show "Click to subscribe" button.
+      },
     },
     {
       $project: {
         fullName: 1,
         userName: 1,
-        subscriberCount: 1, 
+        subscriberCount: 1,
         channelSubscribedToCount: 1,
         isSubscribed: 1,
         avatar: 1,
-        coverImage: 1, 
-        email: 1
-      } // this pipeline is used to send a limited, and only important data to the front end.
-    }
+        coverImage: 1,
+        email: 1,
+      }, // this pipeline is used to send a limited, and only important data to the front end.
+    },
   ]);
 
-  if (!channel?.length){
-    throw new apiError(404, "channel does not exist")
+  if (!channel?.length) {
+    throw new apiError(404, "channel does not exist");
   }
 
-  return res.status(200).json(new apiResponse(200, channel[0], "User channel fetched successfully"))
-})
+  return res
+    .status(200)
+    .json(
+      new apiResponse(200, channel[0], "User channel fetched successfully")
+    );
+});
 
 const getWatchHistory = asyncHandler(async (req, res) => {
   const User = User.aggregate([
     {
       $match: {
-        _id: mongoose.Types.ObjectId(req.user._id) // IMPORTANT NOTE : In this code, we are trying to find the details of the user whose search history we want. However, the reason why we are passing the user's id in "mongoose.Types.ObjectId" is becasue "req.user._id" contains the string of the mongoDB_id. When we are using mongoose.Schema to extract or to comapre these ids, mongoose internally configure these strings to that of the mongoDB ids. However, in the case of pipelines, we must convert these id strings explicitly into their mongoDB id like this.
-      }
-    }, {
+        _id: mongoose.Types.ObjectId(req.user._id), // IMPORTANT NOTE : In this code, we are trying to find the details of the user whose search history we want. However, the reason why we are passing the user's id in "mongoose.Types.ObjectId" is becasue "req.user._id" contains the string of the mongoDB_id. When we are using mongoose.Schema to extract or to comapre these ids, mongoose internally configure these strings to that of the mongoDB ids. However, in the case of pipelines, we must convert these id strings explicitly into their mongoDB id like this.
+      },
+    },
+    {
       $lookup: {
-        from: "videos", 
-        localField: "watchHistory", 
-        foreignField: "_id", 
-        as: "watchHistory", 
-        pipeline: [ // from the previous pipeline, we are connecting the user's document with that of it's watchHistory videos on the basis of watchVideo_id. However, by doing so, we will only get the videos information, not their owner's information because their owner sections contains user_id of the owner. We need a sub-pipeline for getting the user information as soon as we are getting the videos information.
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        pipeline: [
+          // from the previous pipeline, we are connecting the user's document with that of it's watchHistory videos on the basis of watchVideo_id. However, by doing so, we will only get the videos information, not their owner's information because their owner sections contains user_id of the owner. We need a sub-pipeline for getting the user information as soon as we are getting the videos information.
           {
             $lookup: {
               from: "users",
               localField: "owner",
-              foreignField: "_id", 
-              as: "owner", 
+              foreignField: "_id",
+              as: "owner",
               pipelien: [
                 {
                   $project: {
-                    fullName: 1, 
-                    userName: 1, 
-                    avatar: 1
-                  }
-                }
-              ]
-            }
-          }, 
+                    fullName: 1,
+                    userName: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
           {
             $addFields: {
               owner: {
-                $first: "$owner"
-              } //IMPORTANT NOTE:  this sub-pipeline is used because as we know whenever we are getting data from pipeline or sub-pipeline, we are getting it in the form of array, if it contains only one object. So to make things easier for the front end development, we are already storing the data of owner, that is stored in the first field of the array, in the field of the same name to overwrite it. Because of this, the front end will only receive the data in the form of the object directly, not in the form of array.
-            }
-          }
-        ]
-      }
-    }
+                $first: "$owner",
+              }, //IMPORTANT NOTE:  this sub-pipeline is used because as we know whenever we are getting data from pipeline or sub-pipeline, we are getting it in the form of array, if it contains only one object. So to make things easier for the front end development, we are already storing the data of owner, that is stored in the first field of the array, in the field of the same name to overwrite it. Because of this, the front end will only receive the data in the form of the object directly, not in the form of array.
+            },
+          },
+        ],
+      },
+    },
   ]);
 
-  return res.status(200).json(new apiResponse(200, user[0].getWatchHistory, "watch history fetched successfully"))
-})
+  return res
+    .status(200)
+    .json(
+      new apiResponse(
+        200,
+        user[0].getWatchHistory,
+        "watch history fetched successfully"
+      )
+    );
+});
 
 export {
   registerUser,
@@ -553,5 +569,5 @@ export {
   updateUserAvatar,
   updateUserCoverImage,
   getUserChannelDetails,
-  getWatchHistory
+  getWatchHistory,
 };
