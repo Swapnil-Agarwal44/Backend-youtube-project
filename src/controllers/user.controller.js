@@ -1,9 +1,13 @@
-import { User } from "../models/user.model.js";
+import { User, User } from "../models/user.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadOnCloudinary,
+  deleteFromCloudinary,
+} from "../utils/cloudinary.js";
 import { apiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // We will have to generate the access token and refresh token together again and again, that's why we are going to do the same in a function.
 
@@ -64,7 +68,7 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new apiError(409, "User with email or username already exists");
   }
 
-  const avatarLocalPath = req.files?.avatar[0]?.path;
+  const avatarLocalPath = req.files?.avatar?.[0]?.path;
   //   const coverImageLocalPath = req.files?.avatar[0]?.path;   // Whenever we are trying to optionally select files dependent on the availability, we may encounter some errors (such as undefined). To prevent these errors, we can use traditional conditional check statements.
 
   let coverImageLocalPath;
@@ -308,56 +312,234 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     .json(new apiResponse(200, user, "Account details updated successfully"));
 });
 
-const updateUserAvatar = asyncHandler(async(req, res)=>{
-  const avatarLocalPath = req.file?.path
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  const avatarLocalPath = req.file?.path;
 
-  if(!avatarLocalPath){
-    throw new apiError(400, "Avatar file is missing")
+  if (!avatarLocalPath) {
+    throw new apiError(400, "Avatar file is missing");
   }
 
-  const avatar = await uploadOnCloudinary(avatarLocalPath)
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
 
-  if(!avatar.url){
-    throw new apiError(400, "Error while uploading on avatar")
+  if (!avatar.url) {
+    throw new apiError(400, "Error while uploading on avatar");
   }
 
-  await User.findByIdAndUpdate(
+  const existingAvatarURL = await User.findById(req.user._id, "avatar");
+  //"existingAvatarURL" will be an object containg the id and avatar of the user.
+
+  console.log(existingAvatarURL);
+
+  const result = await User.findByIdAndUpdate(
     req.user?._id,
     {
       $set: {
-        avatar: avatar.url
-      }
-    }, 
-    {new: true}
-  ).select("-password")
+        avatar: avatar.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
 
-  return res.status(200).json(new apiResponse(200, user, "Avatar Image updated successfully"))
+  if (avatar && result) {
+    const deleteResult = await deleteFromCloudinary(existingAvatarURL.avatar);
+
+    if (deleteResult) {
+      return res
+        .status(200)
+        .json(
+          new apiResponse(
+            200,
+            deleteResult,
+            "Avatar Image updated successfully"
+          )
+        );
+    } else {
+      return new apiError(
+        400,
+        "Something went wrong while deleting Previous Avatar Image"
+      );
+    }
+  } else {
+    return new apiError(
+      400,
+      "Something went wrong while updating Avatar Image"
+    );
+  }
+});
+
+const updateUserCoverImage = asyncHandler(async (req, res) => {
+  const coverImageLocalPath = req.file?.path;
+
+  if (!coverImageLocalPath) {
+    throw new apiError(400, "Cover Image file is missing");
+  }
+
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+
+  if (!coverImage.url) {
+    throw new apiError(400, "Error while uploading on cover image ");
+  }
+
+  const existingCoverImage = await User.findById(req.user._id, "coverImage");
+
+  const result = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        coverImage: coverImage.url,
+      },
+    },
+    { new: true }
+  ).select("-password");
+
+  if (!result)
+    throw new apiError(
+      500,
+      "Error while updating the new cover image on the database"
+    );
+
+  if (!existingCoverImage) {
+    return res
+      .status(200)
+      .json(new apiResponse(200, result, "Cover Image updated successfully"));
+  } else if (existingCoverImage) {
+    const deleteResult = await deleteFromCloudinary(
+      existingCoverImage.coverImage
+    );
+
+    if (deleteResult) {
+      return res
+        .status(200)
+        .json(new apiResponse(200, deleteResult, "Cover Image updated successfully"));
+    } else {
+      return new apiError(
+        400,
+        "Something went wrong while deleting Previous Cover Image"
+      );
+    }
+  } else {
+    return new apiError(400, "Something went wrong while updating Cover Image");
+  }
+});
+
+const getUserChannelDetails = asyncHandler(async (req, res) => {
+
+  // In this function, we will extract the details of the channel that will be sent and displayed on the front end, like username, channel name, subsribers count, subribed channels count, etc.
+
+  // We will be using the aggregation pipeleines to extract the details of the channel like subscribers count and subscribedToChannels count. 
+
+  const  {userName} = req.params;
+
+  if(!userName?.trim()){
+    throw new apiError(400, "Username is required")
+  }
+
+  //Now we will be using aggregate pipelines to find the user channel based on it's username and will calculate its subscribers count and subscribed channels count.
+
+  const channel = User.aggregate([
+    {
+      $match: {
+        userName: userName?.toLowerCase()
+      } // in this pipeline, we are extracting the channel information using the userName. We can do the same using find() method, however, we are using pipeline to make a consistent code
+    }, 
+    {
+      $lookup: {
+        from: "subscriptions", //IMPORTANT NOTE: in the mongoDb, the model name is converted to lower case and is made plural. 
+        localField: "_id",
+        foreignField: "channel", 
+        as: "subscribers"
+      } // this pipeline works as a join operation, joining a field (column) in the user document containing the subscribers of the user 
+    }, 
+    {
+      $lookup: {
+      from: "subscriptions",
+      localField: "_id",
+      foreignField: "subscriber", 
+      as: "subscribedTo"
+    }}, // this pipeline works as a join operation, joining a field (column) in the user document containing the subscribed channels of the user
+
+    //IMPORTANT NOTE: Pipelines work on the data passed by the previous pipeline. However there are some pipelines that doesn't modify data, i.e., can only add fields on the data that is passed on them. They include "$lookup", "$addfields", "$set", "$project", etc. So that is the reason the second "$lookup" was able to work independently of the first lookup.
+    {
+      $addFields: {
+        subscriberCount: {
+          $size: "$subscribers"
+        }, // this will add a new field which will contain the total count of the user's subscribers.
+        channelSubscribedToCount: {
+          $size: "subscribedTo"
+        }, // this will add a new field which will contain the total count of the user's subscribed channels.
+        isSubscribed: {
+          $cond: {
+            if: {$in: [req.user?._id, "$subscribers.subscriber"]},
+            then: true,
+            else: false
+          }
+        }// this will add a new field which will contain the boolean value depending if the client has subscribed to the user or not. This value will be used in the front end (react state management). Any client that will view the user's channel, will receive this value. If it is true, then the button beside the channel picture will show "subscribed" button, otherwise it will show "Click to subscribe" button.
+      }
+    },
+    {
+      $project: {
+        fullName: 1,
+        userName: 1,
+        subscriberCount: 1, 
+        channelSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1, 
+        email: 1
+      } // this pipeline is used to send a limited, and only important data to the front end.
+    }
+  ]);
+
+  if (!channel?.length){
+    throw new apiError(404, "channel does not exist")
+  }
+
+  return res.status(200).json(new apiResponse(200, channel[0], "User channel fetched successfully"))
 })
 
-const updateUserCoverImage = asyncHandler(async(req, res)=>{
-  const coverImageLocalPath = req.file?.path
-
-  if(!coverImageLocalPath){
-    throw new apiError(400, "Cover Image file is missing")
-  }
-
-  const coverImage = await uploadOnCloudinary(coverImageLocalPath)
-
-  if(!coverImage.url){
-    throw new apiError(400, "Error while uploading on cover image ")
-  }
-
-  await User.findByIdAndUpdate(
-    req.user?._id,
+const getWatchHistory = asyncHandler(async (req, res) => {
+  const User = User.aggregate([
     {
-      $set: {
-        coverImage: coverImage.url
+      $match: {
+        _id: mongoose.Types.ObjectId(req.user._id) // IMPORTANT NOTE : In this code, we are trying to find the details of the user whose search history we want. However, the reason why we are passing the user's id in "mongoose.Types.ObjectId" is becasue "req.user._id" contains the string of the mongoDB_id. When we are using mongoose.Schema to extract or to comapre these ids, mongoose internally configure these strings to that of the mongoDB ids. However, in the case of pipelines, we must convert these id strings explicitly into their mongoDB id like this.
       }
-    }, 
-    {new: true}
-  ).select("-password")
+    }, {
+      $lookup: {
+        from: "videos", 
+        localField: "watchHistory", 
+        foreignField: "_id", 
+        as: "watchHistory", 
+        pipeline: [ // from the previous pipeline, we are connecting the user's document with that of it's watchHistory videos on the basis of watchVideo_id. However, by doing so, we will only get the videos information, not their owner's information because their owner sections contains user_id of the owner. We need a sub-pipeline for getting the user information as soon as we are getting the videos information.
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id", 
+              as: "owner", 
+              pipelien: [
+                {
+                  $project: {
+                    fullName: 1, 
+                    userName: 1, 
+                    avatar: 1
+                  }
+                }
+              ]
+            }
+          }, 
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner"
+              } //IMPORTANT NOTE:  this sub-pipeline is used because as we know whenever we are getting data from pipeline or sub-pipeline, we are getting it in the form of array, if it contains only one object. So to make things easier for the front end development, we are already storing the data of owner, that is stored in the first field of the array, in the field of the same name to overwrite it. Because of this, the front end will only receive the data in the form of the object directly, not in the form of array.
+            }
+          }
+        ]
+      }
+    }
+  ]);
 
-  return res.status(200).json(new apiResponse(200, user, "Cover Image updated successfully"))
+  return res.status(200).json(new apiResponse(200, user[0].getWatchHistory, "watch history fetched successfully"))
 })
 
 export {
@@ -369,5 +551,7 @@ export {
   getCurrentUser,
   updateAccountDetails,
   updateUserAvatar,
-  updateUserCoverImage
+  updateUserCoverImage,
+  getUserChannelDetails,
+  getWatchHistory
 };

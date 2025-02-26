@@ -16,8 +16,8 @@ const uploadOnCloudinary = async (localFilePath) => {
     if (!localFilePath) return null; //if there is no localFilePath in the directory, then run this condition.
     //uploading on cloudinary from the local storage.
     const response = await cloudinary.uploader.upload(localFilePath, {
-        resource_type: "auto",
-      });
+      resource_type: "auto",
+    });
     // console.log(
     //   "The file was successfully uploaded on cloudinary",
     //   response.url
@@ -27,9 +27,24 @@ const uploadOnCloudinary = async (localFilePath) => {
   } catch (error) {
     fs.unlinkSync(localFilePath);
     console.log("the file is not uploaded");
-    
+
     return null; //remove the file from the local storage if there has any error occurred to make sure that there are no malfunctioning file and to make sure that we don't have two files with the same name when the user trys to upload the same file again.
   }
 };
 
-export { uploadOnCloudinary };
+// this utility will be used to remove the previous image of the user from cloudinary. This was coded by me, without any tutorials.
+
+const deleteFromCloudinary = async (existingURL) => {
+  try {
+    const publicID = existingURL.split("/").pop().split(".")[0];
+    // this line of code is used to extract publicID of the image from the image URL.
+
+    const result = await cloudinary.uploader.destroy(publicID);
+    return result;
+  } catch (error) {
+    console.log("Previous file was not deleted from Cloudinary");
+    return null;
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };
